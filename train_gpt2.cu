@@ -67,6 +67,10 @@ GPT-2 Transformer Neural Net training loop. See README.md for usage.
 // ----------- Multi-GPU support -----------
 #include "llmc/zero.cuh"
 
+#ifdef XDNN
+#include "xdnn.cuh"
+#endif
+
 // ----------------------------------------------------------------------------
 // global vars for I/O
 char filename_buffer[512];
@@ -248,6 +252,8 @@ void fill_in_activation_sizes(size_t* act_sizes, size_t B, size_t T, GPT2Config 
     #ifdef ENABLE_CUDNN
     // FP32 stats tensor for cuDNN to be passed to backward pass
     act_sizes[5] = L * B * NH * T * (sizeof(float) / sizeof(floatX));
+    #elif defined(XDNN)
+    act_sizes[5] = L * B * NH * T * 2 * (sizeof(float) / sizeof(floatX));
     #else
     act_sizes[5] = L * B * NH * T * T; // att
     #endif
@@ -653,6 +659,11 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
         floatX* l_residual3 = acts.residual3 + l * B * T * C;
 
         // now do the forward pass
+#ifdef XDNN
+        float* l_att = (float*)acts.att + l * B * NH * T; // cuDNN needs a smaller FP32 tensor
+        matmul_forward_cublaslt(l_qkvr, l_ln1, l_qkvw, l_qkvb, B, T, C, 3*C, main_stream);
+        xdnn_attn_fwd(l_atty, l_att, l_qkvr, B, T, C, NH, main_stream);
+#else
         #ifdef ENABLE_CUDNN
         float* l_att = (float*)acts.att + l * B * NH * T; // cuDNN needs a smaller FP32 tensor
         matmul_forward_cublaslt(l_qkvr, l_ln1, l_qkvw, l_qkvb, B, T, C, 3*C, main_stream);
@@ -665,7 +676,7 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
         matmul_forward_cublaslt(scratch, l_ln1, l_qkvw, l_qkvb, B, T, C, 3*C, main_stream);
         attention_forward(l_atty, l_qkvr, l_att, scratch, B, T, C, NH, main_stream);
         #endif
-
+#endif
         matmul_forward_cublaslt(l_attproj, l_atty, l_attprojw, l_attprojb, B, T, C, C, main_stream);
         fused_residual_forward5(l_residual2, l_ln2, l_ln2_mean, l_ln2_rstd, residual, l_attproj, l_ln2w, l_ln2b, B*T, C, main_stream);
         matmul_forward_cublaslt(l_fch, l_ln2, l_fcw, l_fcb, B, T, C, 4*C, main_stream);
@@ -860,7 +871,10 @@ void gpt2_backward_and_reduce(GPT2 *model, int* inputs, const int* targets, int 
         // layernorm backward does += to the dresidual, so it correctly accumulates grad from the MLP block above
         layernorm_backward(dresidual, dl_ln2w, dl_ln2b, scratchF, dl_btc, l_residual2, l_ln2w, l_ln2_mean, l_ln2_rstd, B, T, C, main_stream);
         matmul_backward(dl_btc, dl_attprojw, dl_attprojb, dresidual, l_atty, l_attprojw, scratchF, B, T, C, C, main_stream);
-
+#ifdef XDNN
+        float* l_att = (float*)acts.att + l * B * NH * T;
+        xdnn_attn_bwd(dl_bt4c, l_qkvr, l_atty, dl_btc, l_att, B, T, C, NH, main_stream);
+#else
         #ifdef ENABLE_CUDNN
         float* l_att = (float*)acts.att + l * B * NH * T; // cuDNN needs a smaller FP32 tensor
         attention_backward_cudnn(dl_bt4c, dl_btc, l_qkvr, l_atty, (float*)l_att, B, T, NH, C, main_stream);
@@ -871,6 +885,7 @@ void gpt2_backward_and_reduce(GPT2 *model, int* inputs, const int* targets, int 
         floatX* buffer_b = l_fch;        // this is B x T x 4C, so even larger than what we need
         attention_backward(dl_bt4c, buffer_b, scratchX, buffer_a, dl_btc, l_qkvr, l_att, B, T, C, NH, main_stream);
         #endif
+#endif
         if(model->recompute >= 2) {
             layernorm_forward(l_ln1, l_ln1_mean, l_ln1_rstd, residual, l_ln1w, l_ln1b, B, T, C, main_stream);
         }

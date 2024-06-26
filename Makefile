@@ -289,6 +289,13 @@ else
     TARGETS += train_gpt2amd test_gpt2amd train_gpt2_fp32amd test_gpt2_fp32amd profile_gpt2amd
     HIPCC_FLAGS += -DBUILD_AMD
 endif
+ifeq ($(XDNN_PATH),)
+    $(info ✗ xdnn not found, skipping optimized AMD kernels)
+else
+    $(info ✓ xdnn found, including optimized AMD kernels)
+    HIPCC_FLAGS += -DXDNN -I$(XDNN_PATH)
+    HIPCC_LDFLAGS += -L$(XDNN_PATH) -lxdnn
+endif
 
 $(info ---------------------------------------------)
 
