@@ -5,12 +5,6 @@ Utilities for ZeRO sharding
 #ifndef LLMC_ZERO_CUH
 #define LLMC_ZERO_CUH
 
-#ifdef _WIN32
-#include <winsock2.h>
-#else
-#include <arpa/inet.h>
-#endif
-
 #include <cuda_runtime_api.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -27,6 +21,9 @@ Utilities for ZeRO sharding
 #include <mpi.h>
 #endif
 #endif
+
+// defines: fcloseCheck, fwriteCheck, scloseCheck, sclosesocketCheckCheck
+#include "utils.h"
 
 // ----------------------------------------------------------------------------
 // Multi-GPU related
@@ -95,7 +92,7 @@ void send_nccl_id_to_clients_windows(ncclUniqueId *nccl_id, SOCKET client_socket
             WSACleanup();
             exit(EXIT_FAILURE);
         }
-        closesocket(client_sockets[i]);
+        closesocketCheck(client_sockets[i]);
     }
 }
 #else
@@ -105,7 +102,7 @@ void send_nccl_id_to_clients(ncclUniqueId *nccl_id, int client_sockets[], int nu
             printf("Failed to send nccl_id");
             exit(EXIT_FAILURE);
         }
-        close(client_sockets[i]);
+        scloseCheck(client_sockets[i]);
     }
 }
 #endif
@@ -147,7 +144,7 @@ ncclUniqueId get_nccl_id_via_tcp_windows(MultiGpuConfig* result, const char* ser
         // Step 3) bind the socket to the address and port
         if (bind(server_socket, (struct sockaddr *)&address, sizeof(address)) == SOCKET_ERROR) {
             printf("Bind failed");
-            closesocket(server_socket);
+            closesocketCheck(server_socket);
             WSACleanup();
             exit(EXIT_FAILURE);
         }
@@ -155,7 +152,7 @@ ncclUniqueId get_nccl_id_via_tcp_windows(MultiGpuConfig* result, const char* ser
         // Step 4) MAX_CLIENTS specifies the maximum number of clients that can be queued for this server
         if (listen(server_socket, MAX_CLIENTS) == SOCKET_ERROR) {
             printf("Listen failed");
-            closesocket(server_socket);
+            closesocketCheck(server_socket);
             WSACleanup();
             exit(EXIT_FAILURE);
         }
@@ -165,7 +162,7 @@ ncclUniqueId get_nccl_id_via_tcp_windows(MultiGpuConfig* result, const char* ser
         while (num_clients < MAX_CLIENTS) {
             if ((new_socket = accept(server_socket, (struct sockaddr *)&address, &addrlen)) == INVALID_SOCKET) {
                 printf("Accept failed");
-                closesocket(server_socket);
+                closesocketCheck(server_socket);
                 WSACleanup();
                 exit(EXIT_FAILURE);
             }
@@ -177,7 +174,7 @@ ncclUniqueId get_nccl_id_via_tcp_windows(MultiGpuConfig* result, const char* ser
         send_nccl_id_to_clients_windows(&nccl_id, client_sockets, num_clients);
         printf("NCCL ID sent to all clients\n");
 
-        closesocket(server_socket);
+        closesocketCheck(server_socket);
     } else {
         int num_connection_attempts = 5;
         int time_to_sleep = 2;
@@ -196,7 +193,7 @@ ncclUniqueId get_nccl_id_via_tcp_windows(MultiGpuConfig* result, const char* ser
         serv_addr.sin_port = htons(SERVER_PORT);
         if (inet_pton(AF_INET, server_ip, &serv_addr.sin_addr) <= 0) {
             printf("Invalid address or address not supported");
-            closesocket(client_socket);
+            closesocketCheck(client_socket);
             WSACleanup();
             exit(EXIT_FAILURE);
         }
@@ -206,7 +203,7 @@ ncclUniqueId get_nccl_id_via_tcp_windows(MultiGpuConfig* result, const char* ser
             printf("%d Connection failed, retrying in %d seconds\n", result->process_rank, time_to_sleep);
             if (--num_connection_attempts == 0) {
                 printf("Failed to connect to the server\n");
-                closesocket(client_socket);
+                closesocketCheck(client_socket);
                 WSACleanup();
                 exit(EXIT_FAILURE);
             }
@@ -216,13 +213,13 @@ ncclUniqueId get_nccl_id_via_tcp_windows(MultiGpuConfig* result, const char* ser
         // Step 4) receive the NCCL ID from the server
         if (recv(client_socket, (char *)&nccl_id, sizeof(nccl_id), 0) <= 0) {
             printf("Failed to receive nccl_id");
-            closesocket(client_socket);
+            closesocketCheck(client_socket);
             WSACleanup();
             exit(EXIT_FAILURE);
         }
 
         printf("Received NCCL ID\n");
-        closesocket(client_socket);
+        closesocketCheck(client_socket);
     }
 
     WSACleanup();
@@ -291,7 +288,7 @@ ncclUniqueId get_nccl_id_via_tcp(MultiGpuConfig* result, const char* server_ip) 
         send_nccl_id_to_clients(&nccl_id, client_sockets, num_clients);
         printf("NCCL ID sent to all clients\n");
 
-        close(server_socket);
+        scloseCheck(server_socket);
     } else {
         int num_connection_attempts = 5;
         int time_to_sleep = 2;
@@ -329,7 +326,7 @@ ncclUniqueId get_nccl_id_via_tcp(MultiGpuConfig* result, const char* server_ip) 
         }
 
         printf("Received NCCL ID\n");
-        close(client_socket);
+        scloseCheck(client_socket);
     }
 
     return nccl_id;
@@ -352,8 +349,8 @@ ncclUniqueId get_nccl_id_via_fs(MultiGpuConfig* result, char* fs_path) {
         ncclCheck(ncclGetUniqueId(&nccl_id));
         idFile = fopen(filename, "wb");
         assert(idFile != NULL);
-        fwrite(&nccl_id, sizeof(nccl_id), 1, idFile);
-        fclose(idFile);
+        fwriteCheck(&nccl_id, sizeof(nccl_id), 1, idFile);
+        fcloseCheck(idFile);
     } else {
         // Other ranks wait until the file is available and read the unique ID
         do {
@@ -362,7 +359,7 @@ ncclUniqueId get_nccl_id_via_fs(MultiGpuConfig* result, char* fs_path) {
             if (idFile != NULL) break;
         } while (idFile == NULL);
         freadCheck(&nccl_id, sizeof(nccl_id), 1, idFile);
-        fclose(idFile);
+        fcloseCheck(idFile);
     }
 
     return nccl_id;
