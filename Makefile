@@ -92,7 +92,7 @@ endif
 ifdef USE_CK
   ifdef CK_PATH
     HIPCC_FLAGS += -I$(CK_PATH)/include -DNEW_CK
-    HIPCC_LDFLAGS += -I$(CK_PATH)/build/lib
+    HIPCC_LDFLAGS += -L$(CK_PATH)/build/lib
   endif
   HIPCC_FLAGS += -DUSE_CK
   HIPCC_LDFLAGS += -ldevice_gemm_operations -lutility -ldevice_other_operations
