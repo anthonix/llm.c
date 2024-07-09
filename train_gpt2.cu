@@ -9,6 +9,13 @@ GPT-2 Transformer Neural Net training loop. See README.md for usage.
 #include <string_view>
 #include <sys/stat.h>
 #include <sys/types.h>
+#ifdef USE_CK
+#include <hip/hip_bfloat16.h>
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_wmma_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma.hpp"
+#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
+#include "ck/ck.hpp"
+#endif
 // ----------- CPU utilities -----------
 // defines: fopenCheck, freadCheck, fcloseCheck, fseekCheck, mallocCheck
 // defines: create_dir_if_not_exists, find_max_step
@@ -209,7 +216,7 @@ typedef struct {
     float* ln1_rstd; // (L, B, T)
     floatX* atty; // (L, B, T, C)
     // cuDNN saves only some statistics information
-#if ENABLE_CUDNN
+#if defined(ENABLE_CUDNN) || defined(XDNN)
     float* att;  // (L, B, NH, T)
 #else
     floatX* att; // (L, B, NH, T, T)
@@ -1176,6 +1183,11 @@ void common_start(bool override_enable_tf32 = true, bool print_device_info = tru
     // set up cuBLAS and cuBLASLt
     cublasCheck(cublasLtCreate(&cublaslt_handle));
     cudaCheck(cudaMalloc(&cublaslt_workspace, cublaslt_workspace_size));
+#if defined(BUILD_AMD) && defined(USE_HIPBLAS)
+    cublasCheck(cublasCreate(&cublas_handle));
+    cudaCheck(cudaMalloc(&cublas_workspace, cublaslt_workspace_size));
+    cublasCheck(cublasSetWorkspace(cublas_handle, cublas_workspace, cublaslt_workspace_size));
+#endif
 
     // TF32 precision is equivalent to torch.set_float32_matmul_precision('high')
     bool enable_tf32 = PRECISION_MODE == PRECISION_FP32 && deviceProp.major >= 8 && override_enable_tf32;
@@ -1190,6 +1202,10 @@ void common_free(GPT2 &model) {
     cudaCheck(cudaStreamDestroy(main_stream));
     cudaCheck(cudaFree(cublaslt_workspace));
     cublasCheck(cublasLtDestroy(cublaslt_handle));
+#if defined(BUILD_AMD) && defined(USE_HIPBLAS)
+    cublasCheck(cublasDestroy(cublas_handle));
+    cudaCheck(cudaFree(cublas_workspace));
+#endif
     #ifdef ENABLE_CUDNN
     destroy_cudnn();
     #endif

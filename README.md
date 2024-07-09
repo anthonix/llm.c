@@ -1,25 +1,15 @@
 # llm.c for AMD devices
-This is a fork of [Andrej Karpathy's llm.c](https://github.com/karpathy/llm.c) with support for AMD devices. 
+This is a fork of [Andrej Karpathy's llm.c](https://github.com/karpathy/llm.c) with support for AMD's RDNA and CDNA devices.
 
 ## Performance
 
-With default settings on a single 7900 XTX, a training step is currently at ~79ms, compared to ~97ms for PyTorch nightly (2.4.0.dev20240513), and ~440ms for tinygrad.
-
-For multiple GPU training, on a machine with four 7900 XTX, throughput is at ~210,000 tokens per second. 
-
-Update (5/28/24): Fast attention branch down to 58.340831 ms / training step on single 7900 XTX, or 318777 tok/s on 4x 7900 XTX.. currently working on double buffering to push it even further. 
-
-## Status
-
-- [x] train_gpt2_fp32 (baseline, minimal changes)
-- [x] train_gpt2 with BF16 (baseline, minimal changes)
-- [x] train_gpt2 with BF16 and multiple GPUs
-- [ ] RDNA3 optimized kernels (in progress)
-- [ ] CDNA3 optimized kernels
+For the 124M model:
+- On a 4x 7900XTX machine, llm.c is ~2.7x faster than PyTorch 2.3.1+rocm6.0 (and ~3.8x faster with optimizations);
+- On a 8x MI250X machine, llm.c is ~1.15x faster than PyTorch 2.3.1+rocm6.0 (and ~1.4x faster with optimizations)
 
 ## Quick Start (AMD targets)
 
-Install ROCm 6.1.1, checkout the repo, and perform the following steps:
+Install latest ROCm, checkout the repo, and perform the following steps:
 
 ```
 pip install -r requirements.txt
@@ -29,11 +19,15 @@ make train_gpt2amd
 ./train_gpt2amd
 ```
 
-The Makefile will build for all AMD targets detected in your machine, but if you wish to only only build for a particular target (e.g., if you have a iGPU that you want to ignore), pass the target arch with AMDGPU_TARGETS like so: 
+The Makefile will build for all AMD targets detected in your machine, but if you wish to only only build for a particular target (e.g., if you have a iGPU that you want to ignore), pass the target arch with AMDGPU_TARGETS like so:
 
 ```
 make train_gpt2amd AMDGPU_TARGETS=gfx1100
 ```
+
+## Performance tuning
+
+Check the Makefile for advanced build options related to performance, e.g., using local builds of Composable Kernels, hipBLAS, hipBLASlt, etc
 
 ---
 [ORIGINAL README]

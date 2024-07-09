@@ -31,6 +31,10 @@ const size_t cublaslt_workspace_size = 32 * 1024 * 1024;
 void* cublaslt_workspace = NULL;
 cublasComputeType_t cublas_compute = CUBLAS_COMPUTE_32F;
 cublasLtHandle_t cublaslt_handle;
+#if defined(BUILD_AMD) && defined(USE_HIPBLAS)
+cublasHandle_t cublas_handle;
+void* cublas_workspace = NULL;
+#endif
 
 // ----------------------------------------------------------------------------
 // Error checking

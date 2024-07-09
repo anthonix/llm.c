@@ -62,28 +62,46 @@ ROCM_PATH ?= /opt/rocm
 AMDGPU_TARGETS ?= $(shell $(ROCM_PATH)/llvm/bin/amdgpu-offload-arch)
 HIPCC := $(shell which hipcc 2>/dev/null)
 HIPIFY := $(shell which hipify-perl 2>/dev/null)
-HIPCC_FLAGS = -O3 -march=native -I$(BUILD_DIR)/hip
+HIPCC_FLAGS = -O3 -march=native -I$(BUILD_DIR)/hip -ffast-math -funsafe-math-optimizations -fno-strict-aliasing
 HIPCC_FLAGS += $(addprefix --offload-arch=,$(AMDGPU_TARGETS))
-HIPCC_LDFLAGS = -lhipblas -lhipblaslt -lamdhip64
-ifneq ($(filter gfx1100,$(AMDGPU_TARGETS)),)
-  HIPCC_LDFLAGS += -ldevice_gemm_operations -lutility -ldevice_other_operations
-else
-  HIPCC_FLAGS += -DDISABLE_CK
+ifneq ($(NO_MULTI_GPU), 1)
+  ifdef RCCL_PATH
+    HIPCC_FLAGS += -I$(RCCL_PATH)/include
+    HIPCC_LDFLAGS += -L$(RCCL_PATH)
+  endif
+  ifeq ($(shell [ -d /usr/lib/x86_64-linux-gnu/openmpi/lib/ ] && [ -d /usr/lib/x86_64-linux-gnu/openmpi/include/ ] && echo "exists"), exists)
+    HIPCC_FLAGS += -I/usr/lib/x86_64-linux-gnu/openmpi/include -DMULTI_GPU -DUSE_MPI
+    HIPCC_LDFLAGS += -L/usr/lib/x86_64-linux-gnu/openmpi/lib/ -lmpi -lrccl
+  endif
 endif
-ifdef DISABLE_CK
-  HIPCC_FLAGS += -DDISABLE_CK
+ifdef BUILD_XDL
+  HIPCC_FLAGS += -DBUILD_XDL
+endif
+ifdef USE_HIPBLAS
+  ifdef ROCBLAS_PATH
+    HIPCC_FLAGS += -I$(ROCBLAS_PATH)/include
+    HIPCC_LDFLAGS += -L$(ROCBLAS_PATH)/library
+  endif
+  HIPCC_FLAGS += -DUSE_HIPBLAS
+  HIPCC_LDFLAGS += -lhipblas
+endif
+ifdef HIPBLASLT_PATH
+  HIPCC_FLAGS += -I$(HIPBLASLT_PATH)/include
+  HIPCC_LDFLAGS += -L$(HIPBLASLT_PATH)/library
+endif
+ifdef USE_CK
+  ifdef CK_PATH
+    HIPCC_FLAGS += -I$(CK_PATH)/include -DNEW_CK
+    HIPCC_LDFLAGS += -I$(CK_PATH)/build/lib
+  endif
+  HIPCC_FLAGS += -DUSE_CK
+  HIPCC_LDFLAGS += -ldevice_gemm_operations -lutility -ldevice_other_operations
 endif
 ifdef WAVEFRONTSIZE64
   HIPCC_FLAGS += -DWAVEFRONTSIZE64 -mwavefrontsize64
 endif
 ifdef CUMODE
   HIPCC_FLAGS += -mcumode
-endif
-ifneq ($(NO_MULTI_GPU), 1)
-  ifeq ($(shell [ -d /usr/lib/x86_64-linux-gnu/openmpi/lib/ ] && [ -d /usr/lib/x86_64-linux-gnu/openmpi/include/ ] && echo "exists"), exists)
-    HIPCC_FLAGS += -I/usr/lib/x86_64-linux-gnu/openmpi/include -DMULTI_GPU
-    HIPCC_LDFLAGS += -L/usr/lib/x86_64-linux-gnu/openmpi/lib/ -lmpi -lrccl
-  endif
 endif
 AMD_HEADERS = $(addprefix $(BUILD_DIR)/hip/,$(wildcard llmc/*h))
 
@@ -296,6 +314,7 @@ else
     HIPCC_FLAGS += -DXDNN -I$(XDNN_PATH)
     HIPCC_LDFLAGS += -L$(XDNN_PATH) -lxdnn
 endif
+HIPCC_LDFLAGS += -lhipblaslt -lamdhip64
 
 $(info ---------------------------------------------)
 
