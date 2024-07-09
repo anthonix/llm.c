@@ -8,6 +8,7 @@ The Logger object is stateless and uses append mode to write to log files.
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 // defines: fopenCheck, freadCheck, fcloseCheck, fseekCheck, mallocCheck
 #include "utils.h"
 
@@ -34,7 +35,7 @@ void logger_init(Logger *logger, const char *log_dir, int process_rank, int resu
 void logger_log_eval(Logger *logger, int step, float val) {
     if (logger->active == 1) {
         FILE *logfile = fopenCheck(logger->output_log_file, "a");
-        fprintf(logfile, "s:%d eval:%.4f\n", step, val);
+        fprintf(logfile, "s:%d eval:%.4f ts:%lu\n", step, val, (unsigned long)time(NULL));
         fclose(logfile);
     }
 }
@@ -42,7 +43,7 @@ void logger_log_eval(Logger *logger, int step, float val) {
 void logger_log_val(Logger *logger, int step, float val_loss) {
     if (logger->active == 1) {
         FILE *logfile = fopenCheck(logger->output_log_file, "a");
-        fprintf(logfile, "s:%d tel:%.4f\n", step, val_loss);
+        fprintf(logfile, "s:%d tel:%.4f ts:%lu\n", step, val_loss, (unsigned long)time(NULL));
         fclose(logfile);
     }
 }
@@ -50,7 +51,7 @@ void logger_log_val(Logger *logger, int step, float val_loss) {
 void logger_log_train(Logger *logger, int step, float train_loss, float learning_rate, float grad_norm) {
     if (logger->active == 1) {
         FILE *logfile = fopenCheck(logger->output_log_file, "a");
-        fprintf(logfile, "s:%d trl:%.4f lr:%.6f norm:%.2f\n", step, train_loss, learning_rate, grad_norm);
+        fprintf(logfile, "s:%d trl:%.4f lr:%.6f norm:%.2f ts:%lu\n", step, train_loss, learning_rate, grad_norm, (unsigned long)time(NULL));
         fclose(logfile);
     }
 }
