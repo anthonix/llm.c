@@ -272,8 +272,8 @@ __global__ void add_bias(floatX*__restrict__ out, const floatX*__restrict__ bias
         for(int x=0;x<4;x++) {
             __hip_bfloat162 t0 = __float_as_bfloat162(d0[x]);
             __hip_bfloat162 t1 = __float_as_bfloat162(d1[x]);
-            t0.x = t0.x + t1.x;
-            t0.y = t0.y + t1.y;
+            t0.x = __float2bfloat16(__bfloat162float(t0.x) + __bfloat162float(t1.x));
+            t0.y = __float2bfloat16(__bfloat162float(t0.y) + __bfloat162float(t1.y));
             d0[x] = __bfloat162_as_float(t0);
         }
 
