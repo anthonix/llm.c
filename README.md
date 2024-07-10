@@ -19,11 +19,7 @@ make train_gpt2amd
 ./train_gpt2amd
 ```
 
-The Makefile will build for all AMD targets detected in your machine, but if you wish to only only build for a particular target (e.g., if you have a iGPU that you want to ignore), pass the target arch with AMDGPU_TARGETS like so:
-
-```
-make train_gpt2amd AMDGPU_TARGETS=gfx1100
-```
+The Makefile will build for gfx1100 or gfx90a (whichever is found first), but if you are attempting to cross compile or have mixed devices in your machine, please see the Makefile for various environment variables that determine the build target.
 
 ## Performance tuning
 

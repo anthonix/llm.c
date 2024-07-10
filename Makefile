@@ -63,6 +63,22 @@ AMDGPU_TARGETS ?= $(shell $(ROCM_PATH)/llvm/bin/amdgpu-offload-arch)
 HIPCC := $(shell which hipcc 2>/dev/null)
 HIPIFY := $(shell which hipify-perl 2>/dev/null)
 HIPCC_FLAGS = -O3 -march=native -I$(BUILD_DIR)/hip -fno-strict-aliasing
+HIPCC_LDFLAGS += -lamdhip64
+ifneq ($(filter gfx1100,$(AMDGPU_TARGETS)),)
+  CUMODE ?= 1
+  USE_HIPBLAS ?= 1
+  USE_CK ?= 1
+  AMDGPU_TARGETS := gfx1100
+else ifneq ($(filter gfx90a,$(AMDGPU_TARGETS)),)
+  WAVEFRONTSIZE64 ?= 1
+  BUILD_XDL ?= 1
+  AMDGPU_TARGETS := gfx90a
+else
+  $(error Did not find a supported AMD device. Rebuild with AMDGPU_TARGETS env variable to force build for device)
+endif
+ifeq ($(shell test `$(ROCM_PATH)/llvm/bin/amdgpu-arch | grep $(AMDGPU_TARGETS) | wc -l` -lt 2; echo $$?),0)
+  NO_MULTI_GPU ?= 1
+endif
 HIPCC_FLAGS += $(addprefix --offload-arch=,$(AMDGPU_TARGETS))
 ifneq ($(NO_MULTI_GPU), 1)
   ifdef RCCL_PATH
@@ -84,6 +100,8 @@ ifdef USE_HIPBLAS
   endif
   HIPCC_FLAGS += -DUSE_HIPBLAS
   HIPCC_LDFLAGS += -lhipblas
+else
+  HIPCC_LDFLAGS += -lhipblaslt
 endif
 ifdef HIPBLASLT_PATH
   HIPCC_FLAGS += -I$(HIPBLASLT_PATH)/include
@@ -303,7 +321,7 @@ endif
 ifeq ($(HIPCC),)
     $(info ✗ hipcc not found, skipping GPU/AMD builds)
 else
-    $(info ✓ hipcc found, including GPU/AMD builds)
+    $(info ✓ hipcc found, building for $(AMDGPU_TARGETS))
     TARGETS += train_gpt2amd test_gpt2amd train_gpt2_fp32amd test_gpt2_fp32amd profile_gpt2amd
     HIPCC_FLAGS += -DBUILD_AMD
 endif
@@ -314,7 +332,6 @@ else
     HIPCC_FLAGS += -DXDNN -I$(XDNN_PATH)
     HIPCC_LDFLAGS += -L$(XDNN_PATH) -lxdnn
 endif
-HIPCC_LDFLAGS += -lhipblaslt -lamdhip64
 
 $(info ---------------------------------------------)
 
