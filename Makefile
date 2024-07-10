@@ -59,7 +59,7 @@ endif
 
 # AMD flags
 ROCM_PATH ?= /opt/rocm
-AMDGPU_TARGETS ?= $(shell $(ROCM_PATH)/llvm/bin/amdgpu-offload-arch)
+AMDGPU_TARGETS ?= $(shell $(ROCM_PATH)/llvm/bin/amdgpu-offload-arch -a)
 HIPCC := $(shell which hipcc 2>/dev/null)
 HIPIFY := $(shell which hipify-perl 2>/dev/null)
 HIPCC_FLAGS = -O3 -march=native -I$(BUILD_DIR)/hip -fno-strict-aliasing
@@ -76,7 +76,7 @@ else ifneq ($(filter gfx90a,$(AMDGPU_TARGETS)),)
 else
   $(error Did not find a supported AMD device. Rebuild with AMDGPU_TARGETS env variable to force build for device)
 endif
-ifeq ($(shell test `$(ROCM_PATH)/llvm/bin/amdgpu-arch | grep $(AMDGPU_TARGETS) | wc -l` -lt 2; echo $$?),0)
+ifeq ($(shell test `$(ROCM_PATH)/llvm/bin/amdgpu-offload-arch -a | grep $(AMDGPU_TARGETS) | wc -l` -lt 2; echo $$?),0)
   NO_MULTI_GPU ?= 1
 endif
 HIPCC_FLAGS += $(addprefix --offload-arch=,$(AMDGPU_TARGETS))
