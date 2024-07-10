@@ -62,7 +62,7 @@ ROCM_PATH ?= /opt/rocm
 AMDGPU_TARGETS ?= $(shell $(ROCM_PATH)/llvm/bin/amdgpu-offload-arch)
 HIPCC := $(shell which hipcc 2>/dev/null)
 HIPIFY := $(shell which hipify-perl 2>/dev/null)
-HIPCC_FLAGS = -O3 -march=native -I$(BUILD_DIR)/hip -ffast-math -funsafe-math-optimizations -fno-strict-aliasing
+HIPCC_FLAGS = -O3 -march=native -I$(BUILD_DIR)/hip -fno-strict-aliasing
 HIPCC_FLAGS += $(addprefix --offload-arch=,$(AMDGPU_TARGETS))
 ifneq ($(NO_MULTI_GPU), 1)
   ifdef RCCL_PATH

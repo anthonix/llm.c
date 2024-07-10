@@ -334,7 +334,15 @@ void matmul_cublas(floatX*__restrict__ d, const floatX*__restrict__ a, const flo
 
 }
 
-#endif
+void matmul_cublaslt(floatX* d, const floatX* a, const floatX* b, const floatX* bias,
+                     int m, int n, int k, cudaStream_t stream=0, bool transA=true, bool transB=false,
+                     int batch_count=0, size_t strideA=0, size_t strideB=0, size_t strideOut=0,
+                     bool accumulate=false, floatX* pre_gelu=NULL, bool backward=false)
+{
+    matmul_cublas(d, a, b, bias, m, n, k, stream, transA, transB, batch_count, strideA, strideB, strideOut, accumulate, pre_gelu, backward);
+}
+
+#else
 
 // Wrapper around cublasLtMatmul that is meant to support everything we need in llm.c
 // https://docs.nvidia.com/cuda/cublas/#cublasltmatmul
@@ -459,6 +467,8 @@ void matmul_cublaslt(floatX* d, const floatX* a, const floatX* b, const floatX* 
     cudaCheck(cudaGetLastError());
 }
 
+#endif
+
 // small wrapper around matmul_cublaslt for the forward pass (keeping historical order of arguments)
 void matmul_forward_cublaslt(floatX* out,
                      floatX* inp, floatX* weight, floatX* bias,
@@ -468,8 +478,6 @@ void matmul_forward_cublaslt(floatX* out,
     if (gelu_fusion < 1 && pre_gelu) {
 #if defined(USE_CK)
         matmul_ck(pre_gelu, weight, inp, bias, OC, B*T, C, stream, true, false, 0, 0, 0, 0, false, NULL, false);
-#elif defined(USE_HIPBLAS)
-        matmul_cublas(pre_gelu, weight, inp, bias, OC, B*T, C, stream, true, false, 0, 0, 0, 0, false, NULL, false);
 #else
         matmul_cublaslt(pre_gelu, weight, inp, bias, OC, B*T, C, stream, true, false, 0, 0, 0, 0, false, NULL, false);
 #endif
@@ -477,8 +485,6 @@ void matmul_forward_cublaslt(floatX* out,
     } else {
 #if defined(USE_CK)
         matmul_ck(out, weight, inp, bias, OC, B*T, C, stream, true, false, 0, 0, 0, 0, false, pre_gelu, false);
-#elif defined(USE_HIPBLAS)
-        matmul_cublas(out, weight, inp, bias, OC, B*T, C, stream, true, false, 0, 0, 0, 0, false, pre_gelu, false);
 #else
         matmul_cublaslt(out, weight, inp, bias, OC, B*T, C, stream, true, false, 0, 0, 0, 0, false, pre_gelu, false);
 #endif
@@ -520,13 +526,8 @@ void matmul_backward(floatX* dinp, floatX* dweight, floatX* dbias,
     }
 
     // backward to input, uses = in the backward pass (set the gradient)
-#if defined(USE_HIPBLAS)
-    matmul_cublas(dinp, weight, dout, NULL, C, B*T, OC, stream, false, false, 0, 0, 0, 0, false,
-                    gelu_fusion >= 2 ? pre_gelu : NULL, true);
-#else
     matmul_cublaslt(dinp, weight, dout, NULL, C, B*T, OC, stream, false, false, 0, 0, 0, 0, false,
                     gelu_fusion >= 2 ? pre_gelu : NULL, true);
-#endif
 
     // backward GELU (if it wasn't fused into the matmul above)
     if (gelu_fusion < 2 && pre_gelu) {
@@ -534,11 +535,6 @@ void matmul_backward(floatX* dinp, floatX* dweight, floatX* dbias,
     }
 
     // backward to weight, uses += in the backward pass (accumulate the gradient) by setting alpha=one
-#if defined(USE_HIPBLAS)
-    matmul_cublas(dweight, inp, dout, NULL /*dbias*/, C, OC, B*T, stream, false, true, 0, 0, 0, 0,
-                    true /* accumulate */, NULL, true);
-#else
     matmul_cublaslt(dweight, inp, dout, NULL /*dbias*/, C, OC, B*T, stream, false, true, 0, 0, 0, 0,
                     true /* accumulate */, NULL, true);
-#endif
 }
