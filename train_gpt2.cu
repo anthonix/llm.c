@@ -1181,8 +1181,10 @@ void common_start(bool override_enable_tf32 = true, bool print_device_info = tru
     nvtxNameCudaStreamA(main_stream, "main stream");
 
     // set up cuBLAS and cuBLASLt
+#if defined(BUILD_AMD) && !defined(USE_HIPBLAS)
     cublasCheck(cublasLtCreate(&cublaslt_handle));
     cudaCheck(cudaMalloc(&cublaslt_workspace, cublaslt_workspace_size));
+#endif
 #if defined(BUILD_AMD) && defined(USE_HIPBLAS)
     cublasCheck(cublasCreate(&cublas_handle));
     cudaCheck(cudaMalloc(&cublas_workspace, cublaslt_workspace_size));
@@ -1200,8 +1202,10 @@ void common_start(bool override_enable_tf32 = true, bool print_device_info = tru
 
 void common_free(GPT2 &model) {
     cudaCheck(cudaStreamDestroy(main_stream));
+#if defined(BUILD_AMD) && !defined(USE_HIPBLAS)
     cudaCheck(cudaFree(cublaslt_workspace));
     cublasCheck(cublasLtDestroy(cublaslt_handle));
+#endif
 #if defined(BUILD_AMD) && defined(USE_HIPBLAS)
     cublasCheck(cublasDestroy(cublas_handle));
     cudaCheck(cudaFree(cublas_workspace));

@@ -3,10 +3,12 @@ Matrix Multiplication, with help from cuBLASLt
 */
 #ifdef USE_CK
 #include <hip/hip_bfloat16.h>
+#ifdef BUILD_XDL
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl.hpp"
+#endif
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_wmma_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
