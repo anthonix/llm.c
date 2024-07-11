@@ -1,5 +1,7 @@
 # llm.c for AMD devices
-This is a fork of [Andrej Karpathy's llm.c](https://github.com/karpathy/llm.c) with support for AMD's RDNA and CDNA devices.
+This is a fork of [Andrej Karpathy's llm.c](https://github.com/karpathy/llm.c) with support for AMD devices.
+
+It has been tested on Radeon VII (aka gfx906), MI250X (aka gfx90a), and 7900 XTX (aka gfx1100).
 
 ## Performance
 

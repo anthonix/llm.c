@@ -59,7 +59,7 @@ endif
 
 # AMD flags
 ROCM_PATH ?= /opt/rocm
-AMDGPU_TARGETS ?= $(shell $(ROCM_PATH)/llvm/bin/amdgpu-offload-arch -a)
+AMDGPU_TARGETS ?= $(shell $(ROCM_PATH)/llvm/bin/amdgpu-arch)
 HIPCC := $(shell which hipcc 2>/dev/null)
 HIPIFY := $(shell which hipify-perl 2>/dev/null)
 HIPCC_FLAGS = -O3 -march=native -I$(BUILD_DIR)/hip -fno-strict-aliasing
@@ -69,6 +69,10 @@ ifneq ($(filter gfx1100,$(AMDGPU_TARGETS)),)
   USE_HIPBLAS ?= 1
   USE_CK ?= 1
   AMDGPU_TARGETS := gfx1100
+else ifneq ($(filter gfx906,$(AMDGPU_TARGETS)),)
+   WAVEFRONTSIZE64 ?= 1
+   USE_HIPBLAS ?= 1
+   AMDGPU_TARGETS := gfx906
 else ifneq ($(filter gfx90a,$(AMDGPU_TARGETS)),)
   WAVEFRONTSIZE64 ?= 1
   BUILD_XDL ?= 1
