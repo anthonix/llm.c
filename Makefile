@@ -80,8 +80,10 @@ else ifneq ($(filter gfx90a,$(AMDGPU_TARGETS)),)
 else
   $(warning Did not find a supported AMD device. Rebuild with AMDGPU_TARGETS env variable to force build for device)
 endif
-ifeq ($(shell test `$(ROCM_PATH)/llvm/bin/amdgpu-offload-arch -a | grep $(AMDGPU_TARGETS) | wc -l` -lt 2; echo $$?),0)
-  NO_MULTI_GPU ?= 1
+ifndef MULTI_GPU # use MULTI_GPU to force a multi-gpu build in a cross compile situation
+  ifeq ($(shell test `$(ROCM_PATH)/llvm/bin/amdgpu-offload-arch -a | grep $(AMDGPU_TARGETS) | wc -l` -lt 2; echo $$?),0)
+    NO_MULTI_GPU ?= 1
+  endif
 endif
 HIPCC_FLAGS += $(addprefix --offload-arch=,$(AMDGPU_TARGETS))
 ifneq ($(NO_MULTI_GPU), 1)
