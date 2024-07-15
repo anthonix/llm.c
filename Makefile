@@ -111,7 +111,10 @@ else
 endif
 ifdef HIPBLASLT_PATH
   HIPCC_FLAGS += -I$(HIPBLASLT_PATH)/include
-  HIPCC_LDFLAGS += -L$(HIPBLASLT_PATH)/library
+  HIPCC_LDFLAGS += -L$(HIPBLASLT_PATH)/lib
+  ifdef HIPBLAS_PATH
+    HIPCC_FLAGS += -I$(HIPBLAS_PATH)/include
+  endif
 endif
 ifdef USE_CK
   ifdef CK_PATH
