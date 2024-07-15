@@ -70,15 +70,15 @@ ifneq ($(filter gfx1100,$(AMDGPU_TARGETS)),)
   USE_CK ?= 1
   AMDGPU_TARGETS := gfx1100
 else ifneq ($(filter gfx906,$(AMDGPU_TARGETS)),)
-   WAVEFRONTSIZE64 ?= 1
-   USE_HIPBLAS ?= 1
-   AMDGPU_TARGETS := gfx906
+  WAVEFRONTSIZE64 ?= 1
+  USE_HIPBLAS ?= 1
+  AMDGPU_TARGETS := gfx906
 else ifneq ($(filter gfx90a,$(AMDGPU_TARGETS)),)
   WAVEFRONTSIZE64 ?= 1
   BUILD_XDL ?= 1
   AMDGPU_TARGETS := gfx90a
 else
-  $(error Did not find a supported AMD device. Rebuild with AMDGPU_TARGETS env variable to force build for device)
+  $(warning Did not find a supported AMD device. Rebuild with AMDGPU_TARGETS env variable to force build for device)
 endif
 ifeq ($(shell test `$(ROCM_PATH)/llvm/bin/amdgpu-offload-arch -a | grep $(AMDGPU_TARGETS) | wc -l` -lt 2; echo $$?),0)
   NO_MULTI_GPU ?= 1
