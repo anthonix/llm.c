@@ -338,8 +338,8 @@ ifeq ($(XDNN_PATH),)
     $(info ✗ xdnn not found, skipping optimized AMD kernels)
 else
     $(info ✓ xdnn found, including optimized AMD kernels)
-    HIPCC_FLAGS += -DXDNN -I$(XDNN_PATH)
-    HIPCC_LDFLAGS += -L$(XDNN_PATH) -lxdnn
+    HIPCC_FLAGS += -DXDNN -I$(XDNN_PATH)/include
+    HIPCC_LDFLAGS += -L$(XDNN_PATH)/lib -lxdnn
 endif
 
 $(info ---------------------------------------------)

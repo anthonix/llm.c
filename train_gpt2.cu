@@ -78,7 +78,7 @@ GPT-2 Transformer Neural Net training loop. See README.md for usage.
 #include "llmc/zero.cuh"
 
 #ifdef XDNN
-#include "xdnn.cuh"
+#include "xdnn.h"
 #endif
 
 // ----------------------------------------------------------------------------
