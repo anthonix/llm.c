@@ -96,7 +96,7 @@ size_t sizeof_dtype(DType type) {
         case DType::FP16:
             return sizeof(half);
         case DType::BF16:
-            return sizeof(nv_bfloat16);
+            return sizeof(__nv_bfloat16);
         default: // handle or get compiler warning
             fprintf(stderr, "Unknown datatype\n");
             exit(EXIT_FAILURE);
@@ -104,7 +104,7 @@ size_t sizeof_dtype(DType type) {
 }
 
 DType dtype_of(float* f) { return DType::FP32; }
-DType dtype_of(nv_bfloat16 * f) { return DType::BF16; }
+DType dtype_of(__nv_bfloat16 * f) { return DType::BF16; }
 DType dtype_of(half * f) { return DType::FP16; }
 
 
