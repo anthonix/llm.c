@@ -5,13 +5,11 @@ It has been tested on Radeon VII (aka gfx906), MI250X (aka gfx90a), and 7900 XTX
 
 ## Performance
 
-For the 124M model:
-- On a 4x 7900XTX machine, llm.c is ~2.7x faster than PyTorch 2.3.1+rocm6.0 (and ~3.8x faster with optimizations);
-- On a 8x MI250X machine, llm.c is ~1.15x faster than PyTorch 2.3.1+rocm6.0 (and ~1.4x faster with optimizations)
+Updating soon..
 
 ## Quick Start (AMD targets)
 
-Install latest ROCm, checkout the repo, and perform the following steps:
+Install ROCm 6.2, checkout the repo, and perform the following steps:
 
 ```
 pip install -r requirements.txt
@@ -21,11 +19,7 @@ make train_gpt2amd
 ./train_gpt2amd
 ```
 
-The Makefile will build for gfx1100 or gfx90a (whichever is found first), but if you are attempting to cross compile or have mixed devices in your machine, please see the Makefile for various environment variables that determine the build target.
-
-## Performance tuning
-
-Check the Makefile for advanced build options related to performance, e.g., using local builds of Composable Kernels, hipBLAS, hipBLASlt, etc
+The Makefile will build for gfx1100 or gfx90a (whichever is found first), but if you are attempting to cross compile or have mixed devices in your machine, please use AMDGPU_TARGETS flag with make, e.g.: make train_gpt2amd AMDGPU_TARGETS=gfx1100.
 
 ---
 [ORIGINAL README]

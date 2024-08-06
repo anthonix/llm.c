@@ -9,13 +9,6 @@ GPT-2 Transformer Neural Net training loop. See README.md for usage.
 #include <string_view>
 #include <sys/stat.h>
 #include <sys/types.h>
-#ifdef USE_CK
-#include <hip/hip_bfloat16.h>
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_wmma_cshuffle.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma.hpp"
-#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/ck.hpp"
-#endif
 // ----------- CPU utilities -----------
 // defines: fopenCheck, freadCheck, fcloseCheck, fseekCheck, mallocCheck
 // defines: create_dir_if_not_exists, find_max_step, ends_with_bin
@@ -76,10 +69,6 @@ GPT-2 Transformer Neural Net training loop. See README.md for usage.
 // defines: set_zero_configs, multi_gpu_cpu_float_sum, multi_gpu_barrier
 // defines: multi_gpu_get_shard_offset, multi_gpu_async_reduce_gradient
 #include "llmc/zero.cuh"
-
-#ifdef XDNN
-#include "xdnn.h"
-#endif
 
 // ----------------------------------------------------------------------------
 // global vars for I/O
@@ -186,7 +175,7 @@ typedef struct {
     float* ln1_rstd; // (L, B, T)
     floatX* atty; // (L, B, T, C)
     // cuDNN saves only some statistics information
-#if defined(ENABLE_CUDNN) || defined(XDNN)
+#if ENABLE_CUDNN
     float* att;  // (L, B, NH, T)
 #else
     floatX* att; // (L, B, NH, T, T)
@@ -241,8 +230,6 @@ void fill_in_activation_sizes(const ActivationTensors* data, TensorSpec (&tensor
     #ifdef ENABLE_CUDNN
     // FP32 stats tensor for cuDNN to be passed to backward pass
     tensors[5] = TENSOR_SPEC(data->att, L * B * NH * T);
-    #elif defined(XDNN)
-    tensors[5] = TENSOR_SPEC(data->att, L * B * NH * T * 2);
     #else
     tensors[5] = TENSOR_SPEC(data->att, L * B * NH * T * T);
     #endif
@@ -716,11 +703,6 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
         floatX* scratch = (floatX*)acts.output; // used for non-cudnn attention, fcproj, attproj, etc.
 
         // now do the forward pass
-#ifdef XDNN
-        float* l_att = (float*)acts.att + l * B * NH * T * 2;
-        matmul_forward_cublaslt(l_qkvr, l_ln1, l_qkvw, l_qkvb, B, T, C, 3*C, main_stream);
-        xdnn_attn_fwd(l_atty, l_att, l_qkvr, B, T, C, NH, main_stream);
-#else
         #ifdef ENABLE_CUDNN
         float* l_att = (float*)acts.att + l * B * NH * T; // cuDNN needs a smaller FP32 tensor
         matmul_forward_cublaslt(l_qkvr, l_ln1, l_qkvw, l_qkvb, B, T, C, 3*C, main_stream);
@@ -735,7 +717,6 @@ void gpt2_forward(GPT2 *model, const int* inputs, size_t B, size_t T) {
         matmul_forward_cublaslt(scratch, l_ln1, l_qkvw, l_qkvb, B, T, C, 3*C, main_stream);
         attention_forward(l_atty, l_qkvr, l_att, scratch, B, T, C, NH, main_stream);
         #endif
-#endif
 
         matmul_forward_cublaslt(scratch, l_atty, l_attprojw, l_attprojb, B, T, C, C, main_stream);
         fused_residual_forward5(l_residual2, l_ln2, l_ln2_mean, l_ln2_rstd, residual, scratch, l_ln2w, l_ln2b, B*T, C, main_stream);
@@ -913,10 +894,7 @@ void gpt2_backward_and_reduce(GPT2 *model, int* inputs, const int* targets, int 
         // layernorm backward does += to the dresidual, so it correctly accumulates grad from the MLP block above
         layernorm_backward(dresidual, dl_ln2w, dl_ln2b, scratchF, dl_btc, l_residual2, l_ln2w, l_ln2_mean, l_ln2_rstd, B, T, C, main_stream);
         matmul_backward(dl_btc, dl_attprojw, dl_attprojb, dresidual, l_atty, l_attprojw, scratchF, B, T, C, C, main_stream);
-#ifdef XDNN
-        float* l_att = (float*)acts.att + l * B * NH * T * 2;
-        xdnn_attn_bwd(dl_bt4c, l_qkvr, l_atty, dl_btc, l_att, B, T, C, NH, main_stream);
-#else
+
         #ifdef ENABLE_CUDNN
         float* l_att = (float*)acts.att + l * B * NH * T; // cuDNN needs a smaller FP32 tensor
         attention_backward_cudnn(dl_bt4c, dl_btc, l_qkvr, l_atty, (float*)l_att, B, T, NH, C, main_stream);
@@ -927,7 +905,6 @@ void gpt2_backward_and_reduce(GPT2 *model, int* inputs, const int* targets, int 
         floatX* buffer_b = l_fch_pre_gelu;        // this is B x T x 4C, so even larger than what we need
         attention_backward(dl_bt4c, buffer_b, scratchX, buffer_a, dl_btc, l_qkvr, l_att, B, T, C, NH, main_stream);
         #endif
-#endif
         if(model->recompute >= 2) {
             layernorm_forward(l_ln1, l_ln1_mean, l_ln1_rstd, residual, l_ln1w, l_ln1b, B, T, C, main_stream);
         }
@@ -1195,15 +1172,8 @@ void common_start(bool override_enable_tf32 = true, bool print_device_info = tru
     nvtxNameCudaStreamA(main_stream, "main stream");
 
     // set up cuBLAS and cuBLASLt
-#if defined(BUILD_AMD) && !defined(USE_HIPBLAS)
     cublasCheck(cublasLtCreate(&cublaslt_handle));
     cudaCheck(cudaMalloc(&cublaslt_workspace, cublaslt_workspace_size));
-#endif
-#if defined(BUILD_AMD) && defined(USE_HIPBLAS)
-    cublasCheck(cublasCreate(&cublas_handle));
-    cudaCheck(cudaMalloc(&cublas_workspace, cublaslt_workspace_size));
-    cublasCheck(cublasSetWorkspace(cublas_handle, cublas_workspace, cublaslt_workspace_size));
-#endif
 
     // TF32 precision is equivalent to torch.set_float32_matmul_precision('high')
     bool enable_tf32 = PRECISION_MODE == PRECISION_FP32 && deviceProp.major >= 8 && override_enable_tf32;
@@ -1216,14 +1186,8 @@ void common_start(bool override_enable_tf32 = true, bool print_device_info = tru
 
 void common_free(GPT2 &model) {
     cudaCheck(cudaStreamDestroy(main_stream));
-#if defined(BUILD_AMD) && !defined(USE_HIPBLAS)
     cudaCheck(cudaFree(cublaslt_workspace));
     cublasCheck(cublasLtDestroy(cublaslt_handle));
-#endif
-#if defined(BUILD_AMD) && defined(USE_HIPBLAS)
-    cublasCheck(cublasDestroy(cublas_handle));
-    cudaCheck(cudaFree(cublas_workspace));
-#endif
     #ifdef ENABLE_CUDNN
     destroy_cudnn();
     #endif

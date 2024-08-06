@@ -63,15 +63,11 @@ AMDGPU_TARGETS ?= $(shell $(ROCM_PATH)/llvm/bin/amdgpu-arch)
 HIPCC := $(shell which hipcc 2>/dev/null)
 HIPIFY := $(shell which hipify-perl 2>/dev/null)
 HIPCC_FLAGS = -O3 -march=native -I$(BUILD_DIR)/hip -fno-strict-aliasing
-HIPCC_LDFLAGS += -lamdhip64
+HIPCC_LDFLAGS += -lamdhip64 -lhipblaslt
 ifneq ($(filter gfx1100,$(AMDGPU_TARGETS)),)
-  CUMODE ?= 1
-  USE_HIPBLAS ?= 1
-  USE_CK ?= 1
   AMDGPU_TARGETS := gfx1100
 else ifneq ($(filter gfx906,$(AMDGPU_TARGETS)),)
   WAVEFRONTSIZE64 ?= 1
-  USE_HIPBLAS ?= 1
   AMDGPU_TARGETS := gfx906
 else ifneq ($(filter gfx90a,$(AMDGPU_TARGETS)),)
   WAVEFRONTSIZE64 ?= 1
@@ -96,39 +92,16 @@ ifneq ($(NO_MULTI_GPU), 1)
     HIPCC_LDFLAGS += -L/usr/lib/x86_64-linux-gnu/openmpi/lib/ -lmpi -lrccl
   endif
 endif
-ifdef BUILD_XDL
-  HIPCC_FLAGS += -DBUILD_XDL
-endif
-ifdef USE_HIPBLAS
-  ifdef ROCBLAS_PATH
-    HIPCC_FLAGS += -I$(ROCBLAS_PATH)/include
-    HIPCC_LDFLAGS += -L$(ROCBLAS_PATH)/library
-  endif
-  HIPCC_FLAGS += -DUSE_HIPBLAS
-  HIPCC_LDFLAGS += -lhipblas
-else
-  HIPCC_LDFLAGS += -lhipblaslt
-endif
 ifdef HIPBLASLT_PATH
   HIPCC_FLAGS += -I$(HIPBLASLT_PATH)/include
   HIPCC_LDFLAGS += -L$(HIPBLASLT_PATH)/lib
-  ifdef HIPBLAS_PATH
-    HIPCC_FLAGS += -I$(HIPBLAS_PATH)/include
-  endif
 endif
-ifdef USE_CK
-  ifdef CK_PATH
-    HIPCC_FLAGS += -I$(CK_PATH)/include -DNEW_CK
-    HIPCC_LDFLAGS += -L$(CK_PATH)/build/lib
-  endif
-  HIPCC_FLAGS += -DUSE_CK
-  HIPCC_LDFLAGS += -ldevice_gemm_operations -lutility -ldevice_other_operations
+ifdef HIPBLAS_PATH
+  HIPCC_FLAGS += -I$(HIPBLAS_PATH)/include
+  HIPCC_LDFLAGS += -L$(HIPBLAS_PATH)/lib
 endif
 ifdef WAVEFRONTSIZE64
   HIPCC_FLAGS += -DWAVEFRONTSIZE64 -mwavefrontsize64
-endif
-ifdef CUMODE
-  HIPCC_FLAGS += -mcumode
 endif
 AMD_HEADERS = $(addprefix $(BUILD_DIR)/hip/,$(wildcard llmc/*h))
 
@@ -334,13 +307,6 @@ else
     $(info ✓ hipcc found, building for $(AMDGPU_TARGETS))
     TARGETS += train_gpt2amd test_gpt2amd train_gpt2_fp32amd test_gpt2_fp32amd profile_gpt2amd
     HIPCC_FLAGS += -DBUILD_AMD
-endif
-ifeq ($(XDNN_PATH),)
-    $(info ✗ xdnn not found, skipping optimized AMD kernels)
-else
-    $(info ✓ xdnn found, including optimized AMD kernels)
-    HIPCC_FLAGS += -DXDNN -I$(XDNN_PATH)/include
-    HIPCC_LDFLAGS += -L$(XDNN_PATH)/lib -lxdnn
 endif
 
 $(info ---------------------------------------------)
