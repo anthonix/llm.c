@@ -5,7 +5,9 @@ It has been tested on Radeon VII (aka gfx906), MI250X (aka gfx90a), and 7900 XTX
 
 ## Performance
 
-Updating soon..
+~200000 tok/s for the smallest GPT2 model on a 4x7900 XTX.
+
+This is approximately on par with PyTorch 2.4.0 *without* flash attention but using all other go fast options like compile (I'm not aware of any publicly available implementation of flash attention for RDNA3), however PyTorch 2.4.0 with all options to go fast (bf16, flash attention, compile etc) is running at about ~245,000 tok/s.
 
 ## Quick Start (AMD targets)
 
