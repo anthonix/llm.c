@@ -73,8 +73,10 @@ void global_norm_squared(float* out, const T* values, size_t count, ptrdiff_t st
     // one block too many is catastrophic, since it only can start once all the other
     // blocks finish. anyway, I think cuda_threads_per_SM should be a multiple of 512
     // on all gpus, so the division really is going to be exact.
-    const int grid_size = deviceProp.maxThreadsPerMultiProcessor * deviceProp.multiProcessorCount / block_size;
+    int grid_size = deviceProp.maxThreadsPerMultiProcessor * deviceProp.multiProcessorCount / block_size;
     assert(grid_size > 0);      // gives a better error than letting the call below fail
+
+    if (grid_size > 512) grid_size = 512;
 
     const int gx = CEIL_DIV(grid_size, num_slices);
     const int gy = num_slices;
