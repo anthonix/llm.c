@@ -76,8 +76,10 @@ else ifneq ($(filter gfx906,$(AMDGPU_TARGETS)),)
   AMDGPU_TARGETS := gfx906
 else ifneq ($(filter gfx90a,$(AMDGPU_TARGETS)),)
   WAVEFRONTSIZE64 ?= 1
-  BUILD_XDL ?= 1
   AMDGPU_TARGETS := gfx90a
+else ifneq ($(filter gfx942,$(AMDGPU_TARGETS)),)
+  WAVEFRONTSIZE64 ?= 1
+  AMDGPU_TARGETS := gfx942
 else
   $(warning Did not find a supported AMD device. Rebuild with AMDGPU_TARGETS env variable to force build for device)
 endif
